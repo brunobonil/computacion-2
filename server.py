@@ -1,7 +1,8 @@
 import socket
+import utility as u
 
-
-HOST = '192.168.100.156'
+        
+HOST = u.get_ip()
 PORT = 9090
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -16,8 +17,7 @@ while True:
     print(f'Connected to {address}')
     message = com_socket.recv(1024).decode('utf-8')
     print(f'Message is: {message}')
-    com_socket.send(f'Received'.encode('utf-8'))
-    com_socket.close()
-    print(f'Connection ended')
-
+    com_socket.send(input("Mensaje para el cliente: ").encode('utf-8'))
+    print(com_socket.recv(1024).decode('utf-8'))
+        
 
