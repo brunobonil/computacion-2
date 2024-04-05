@@ -17,6 +17,11 @@ client.connect((HOST, PORT))
 
 if args.list:
     client.send(f'<GET>'.encode())
+    msg_len = client.recv(1024).decode()
+    files_list = client.recv(int(msg_len)).decode().split('|')
+    print('LISTA DE ARCHIVOS')
+    [print(f'>>>{i}') for i in files_list]
+
 
 if args.file:
     client.send(f'<POST>'.encode())
