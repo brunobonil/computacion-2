@@ -7,7 +7,8 @@ import utility
 parser = argparse.ArgumentParser("Terminal del cliente")
 parser.add_argument('-f', '--file', help='Especifica la ruta o archivos que se va a enviar')
 parser.add_argument('-l', '--list', action='store_true', help='Devuelve un listado de los archivos en el servidor')
-parser.add_argument('-d', '--delete', type=str, help='Elimina el archivo especificado en el servidor remoto')
+parser.add_argument('-d', '--download', type=str, help='Descarga el archivo especificado')
+parser.add_argument('-r', '--remove', type=str, help='Elimina el archivo especificado en el servidor remoto')
 parser.add_argument('-c', '--close', action='store_true', help='Cierra la conexion con el servidor')
 args = parser.parse_args()
 
@@ -34,12 +35,13 @@ if args.file:
 
     file = open(FILE_NAME, "rb")
     data = file.read()
-    time.sleep(0.1)
+    time.sleep(0.01)
     client.sendall(data)
     file.close()
+    print(client.recv(1024).decode())
 
-if args.delete:
-    client.send(f'<DELETE>'.encode())
+if args.remove:
+    client.send(f'<REMOVE>'.encode())
     time.sleep(0.01)
     file = args.delete
     client.send(file.encode())
