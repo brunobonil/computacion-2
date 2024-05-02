@@ -3,8 +3,10 @@ import socket
 import tqdm
 import utility
 import os
+import multiprocessing as mp
 
 def list_files():
+        time.sleep(1)
         files_list = os.listdir('./shared_files_folder')
         files_list_bytes = b'|'.join([i.encode() for i in files_list])
         client.send(f'{len(files_list_bytes)}'.encode())
@@ -28,7 +30,18 @@ def recv_file():
         shared_file.close()
         client.send(f'File successfully sent'.encode())
 
-def delete_file():
+def send_file():
+    file_name = client.recv(1024).decode()
+    print(file_name)
+    file = open(f'./shared_files_folder/{file_name}', "rb")
+    file_bytes = file.read()
+    print(file_bytes)
+    file_to_send = (str(len(file_bytes))+'|||').encode()
+    file_to_send += file_bytes
+    client.sendall(file_to_send)
+    file.close()
+
+def remove_file():
         file_name = client.recv(1024).decode()
         print(file_name)
         try:
@@ -36,6 +49,22 @@ def delete_file():
             client.send(f'File has been deleted'.encode())
         except FileNotFoundError:
             client.send(f'File does not exists. Try again'.encode())
+
+def method(req_type):
+
+        print(req_type)
+        if req_type == '<GET>':
+            list_files()
+            
+        if req_type == '<POST>':
+            recv_file()
+
+        if req_type == '<DOWNLOAD>':
+            send_file()
+
+        if req_type == '<REMOVE>':
+            remove_file()
+    
 
 if __name__ == '__main__':
     
@@ -51,18 +80,8 @@ if __name__ == '__main__':
         client, address = server.accept()
         print(f'Connected to {address}')
         req_type = client.recv(1024).decode()
-
-        if req_type == '<GET>':
-            list_files()
-
-        if req_type == '<POST>':
-            recv_file()
-    
-        if req_type == '<REMOVE>':
-             delete_file()
+        print(req_type)
+        p = mp.Process(target=method, args=(req_type,))
+        p.start()
         
 
-
-
-    
-        

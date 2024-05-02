@@ -3,6 +3,7 @@ import os
 import time
 import argparse
 import utility
+import tqdm
 
 parser = argparse.ArgumentParser("Terminal del cliente")
 parser.add_argument('-f', '--file', help='Especifica la ruta o archivos que se va a enviar')
@@ -22,7 +23,7 @@ if args.list:
     msg_len = client.recv(1024).decode()
     files_list = client.recv(int(msg_len)).decode().split('|')
     print('LISTA DE ARCHIVOS')
-    [print(f'>>>{i}') for i in files_list]
+    [print(f'>>> {i}') for i in files_list]
 
 if args.file:
     client.send(f'<POST>'.encode())
@@ -40,10 +41,27 @@ if args.file:
     file.close()
     print(client.recv(1024).decode())
 
+if args.download:
+    client.send(f'<DOWNLOAD>'.encode())
+    time.sleep(0.01)
+    file_name = args.download
+    client.send(file_name.encode())
+    file_size, file = client.recv(1024).split(b'||')
+    progress = tqdm.tqdm(total=int(file_size), unit="B", unit_scale=True, unit_divisor=1000)
+
+    while len(file) < int(file_size):
+        file += client.recv(1024)
+        progress.update(1024)
+    
+    new_file = open(f'./client_folder/{file_name}', 'wb')
+    new_file.write(file)
+    new_file.close()
+
+
 if args.remove:
     client.send(f'<REMOVE>'.encode())
     time.sleep(0.01)
-    file = args.delete
+    file = args.remove
     client.send(file.encode())
     print(client.recv(1024).decode())
     client.close()
