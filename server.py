@@ -1,3 +1,4 @@
+import datetime as dt
 import time
 import socket
 import tqdm
@@ -14,19 +15,21 @@ def list_files():
         client.send(files_list_bytes)
 
 def recv_file():
-        file_format, file_size = client.recv(1024).decode().split('|')
+        file, file_size = client.recv(1024).decode().split('|')
         progress = tqdm.tqdm(total=int(file_size), unit="B", unit_scale=True, unit_divisor=1000)
-        print(f'Tamaño real: {file_size}')
-        file = b''
+        file_bytes = b''
+        format = '.' + file.split('.')[-1]
+        file_name = str(file).replace(format, '')
 
-        while len(file) < int(file_size):
-            file += client.recv(1024)
+
+        while len(file_bytes) < int(file_size):
+            file_bytes += client.recv(1024)
             progress.update(1024)
+        print(f'Tamaño recibido: {len(file_bytes)}')
+        date = dt.datetime.now().strftime('%Y_%m_%d-%H_%M_%S')
 
-        print(f'Tamaño recibido: {len(file)}')
-
-        shared_file = open(f'./shared_files_folder/{address[0]}-{time.time()}{file_format}', 'wb')
-        shared_file.write(file)
+        shared_file = open(f'./shared_files_folder/{file_name}-{address[0]}-{date}-{format}', 'wb')
+        shared_file.write(file_bytes)
         shared_file.close()
         client.send(f'File successfully sent'.encode())
 
