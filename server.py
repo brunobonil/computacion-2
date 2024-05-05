@@ -15,12 +15,16 @@ def list_files():
         client.send(files_list_bytes)
 
 def recv_file():
-        file, file_size = client.recv(1024).decode().split('|')
+        #file, file_size = client.recv(1024).decode().split('|')
+        fileInfo = client.recv(1024).decode()
+        if fileInfo == '': 
+            return
+        file, file_size = fileInfo.split('|')
+
         progress = tqdm.tqdm(total=int(file_size), unit="B", unit_scale=True, unit_divisor=1000)
         file_bytes = b''
         format = '.' + file.split('.')[-1]
         file_name = str(file).replace(format, '')
-
 
         while len(file_bytes) < int(file_size):
             file_bytes += client.recv(1024)
@@ -32,6 +36,7 @@ def recv_file():
         shared_file.write(file_bytes)
         shared_file.close()
         client.send(f'File successfully sent'.encode())
+        print('ENVIADO')
 
 def send_file():
     file_name = client.recv(1024).decode()
@@ -55,12 +60,12 @@ def remove_file():
 
 def method(req_type):
 
-        print(req_type)
         if req_type == '<GET>':
             list_files()
             
         if req_type == '<POST>':
-            recv_file()
+            while True:
+                recv_file()
 
         if req_type == '<DOWNLOAD>':
             send_file()
