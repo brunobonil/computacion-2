@@ -5,6 +5,7 @@ import tqdm
 import utility
 import os
 import multiprocessing as mp
+import asyncio
 
 def list_files():
         time.sleep(1)
@@ -14,10 +15,9 @@ def list_files():
         time.sleep(0.01)
         client.send(files_list_bytes)
 
-def recv_file():
-        #file, file_size = client.recv(1024).decode().split('|')
+async def recv_file():
         fileInfo = client.recv(1024).decode()
-        if fileInfo == '': 
+        if fileInfo == '':
             return
         file, file_size = fileInfo.split('|')
 
@@ -32,11 +32,29 @@ def recv_file():
         print(f'Tamaño recibido: {len(file_bytes)}')
         date = dt.datetime.now().strftime('%Y_%m_%d-%H_%M_%S')
 
+        await asyncio.sleep(1)
+
         shared_file = open(f'./shared_files_folder/{file_name}-{address[0]}-{date}-{format}', 'wb')
         shared_file.write(file_bytes)
         shared_file.close()
-        client.send(f'File successfully sent'.encode())
-        print('ENVIADO')
+        client.send(f'Archivo enviado exitosamente'.encode())
+
+async def method(req_type):
+
+        if req_type == '<GET>':
+            list_files()
+            
+        if req_type == '<POST>':
+            await asyncio.gather(recv_file(), recv_file())
+
+        if req_type == '<DOWNLOAD>':
+            send_file()
+
+        if req_type == '<REMOVE>':
+            remove_file()
+
+def process_target(request):
+    asyncio.run(method(request))
 
 def send_file():
     file_name = client.recv(1024).decode()
@@ -56,23 +74,9 @@ def remove_file():
             os.remove(f'./shared_files_folder/{file_name}')
             client.send(f'File has been deleted'.encode())
         except FileNotFoundError:
-            client.send(f'File does not exists. Try again'.encode())
+            client.send(f'El archivo no existe.'.encode())
 
-def method(req_type):
 
-        if req_type == '<GET>':
-            list_files()
-            
-        if req_type == '<POST>':
-            while True:
-                recv_file()
-
-        if req_type == '<DOWNLOAD>':
-            send_file()
-
-        if req_type == '<REMOVE>':
-            remove_file()
-    
 
 if __name__ == '__main__':
     
@@ -89,7 +93,7 @@ if __name__ == '__main__':
         print(f'Connected to {address}')
         req_type = client.recv(1024).decode()
         print(req_type)
-        p = mp.Process(target=method, args=(req_type,))
+        p = mp.Process(target=process_target, args=(req_type,))
         p.start()
         
 

@@ -19,20 +19,23 @@ def listar():
     print('LISTA DE ARCHIVOS')
     [print(f'>>> {i}') for i in files_list]
 
-async def enviar():
-    client.send(f'<POST>'.encode())
-    time.sleep(0.01)
+async def enviar(file_name):
     file_list = args.file
-    for file_name in file_list:
-        file_size = os.path.getsize(file_name)
-        client.send(f"{file_name}|{str(file_size)}".encode())
+    #for file_name in file_list:
+    file_size = os.path.getsize(file_name)
+    client.send(f"{file_name}|{str(file_size)}".encode())
 
-        file = open(file_name, "rb")
-        data = file.read()
-        time.sleep(0.01)
-        client.sendall(data)
-        file.close()
-        print(client.recv(1024).decode())
+    file = open(file_name, "rb")
+    data = file.read()
+    time.sleep(0.01)
+    client.sendall(data)
+    file.close()
+    print(client.recv(1024).decode())
+
+async def enviar_concurrente(file_list):
+    tasks = [enviar(file) for file in file_list]
+    await asyncio.gather(*tasks)
+
 
 def descargar():
     client.send(f'<DOWNLOAD>'.encode())
@@ -71,7 +74,9 @@ if __name__ == '__main__':
         listar()
 
     if args.file:
-        enviar()
+        client.send(f'<POST>'.encode())
+        time.sleep(0.01)
+        asyncio.run(enviar_concurrente(args.file))
 
     if args.download:
         descargar()
