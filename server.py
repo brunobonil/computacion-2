@@ -7,15 +7,16 @@ import os
 import multiprocessing as mp
 import asyncio
 
-def list_files():
-        time.sleep(1)
+def list_files(addr, conn):
+        #time.sleep(1)
         files_list = os.listdir('./shared_files_folder')
         files_list_bytes = b'|'.join([i.encode() for i in files_list])
         client.send(f'{len(files_list_bytes)}'.encode())
         time.sleep(0.01)
         client.send(files_list_bytes)
+        conn.send(f'La terminal {addr} ha listado los archivos | {dt.datetime.now()}')
 
-async def recv_file():
+def recv_file(addr, conn):
         fileInfo = client.recv(1024).decode()
         if fileInfo == '':
             return
@@ -32,42 +33,25 @@ async def recv_file():
         print(f'Tamaño recibido: {len(file_bytes)}')
         date = dt.datetime.now().strftime('%Y_%m_%d-%H_%M_%S')
 
-        await asyncio.sleep(1)
 
-        shared_file = open(f'./shared_files_folder/{file_name}-{address[0]}-{date}-{format}', 'wb')
+        shared_file = open(f'./shared_files_folder/{file_name}-{address[0]}-{date}{format}', 'wb')
         shared_file.write(file_bytes)
         shared_file.close()
         client.send(f'Archivo enviado exitosamente'.encode())
+        conn.send(f'La terminal {addr} ha subido un archivo | {dt.datetime.now()}')
 
-async def method(req_type):
-
-        if req_type == '<GET>':
-            list_files()
-            
-        if req_type == '<POST>':
-            await asyncio.gather(recv_file(), recv_file())
-
-        if req_type == '<DOWNLOAD>':
-            send_file()
-
-        if req_type == '<REMOVE>':
-            remove_file()
-
-def process_target(request):
-    asyncio.run(method(request))
-
-def send_file():
+def send_file(addr, conn):
     file_name = client.recv(1024).decode()
-    print(file_name)
     file = open(f'./shared_files_folder/{file_name}', "rb")
     file_bytes = file.read()
-    print(file_bytes)
     file_to_send = (str(len(file_bytes))+'|||').encode()
     file_to_send += file_bytes
     client.sendall(file_to_send)
     file.close()
+    if client.recv(1024).decode():
+        conn.send(f'La terminal {addr} ha descargado archivo(s) | {dt.datetime.now()}')
 
-def remove_file():
+def remove_file(addr, conn):
         file_name = client.recv(1024).decode()
         print(file_name)
         try:
@@ -75,7 +59,29 @@ def remove_file():
             client.send(f'File has been deleted'.encode())
         except FileNotFoundError:
             client.send(f'El archivo no existe.'.encode())
+        conn.send(f'La terminal {addr} ha eliminado archivos | {dt.datetime.now()}')
+        
+def logger(conn):
+    while True:    
+        log = conn.recv()
+        logFile = open('./server_logger.txt', 'ab')
+        logFile.write(f'{log}\n{"="*100}\n'.encode())
+        logFile.close()
 
+def method(req_type, addr, conn):
+
+        if req_type == '<GET>':
+            list_files(addr, conn)
+            
+        if req_type == '<POST>':
+            while True:
+                recv_file(addr, conn)
+
+        if req_type == '<DOWNLOAD>':
+            send_file(addr, conn)
+
+        if req_type == '<REMOVE>':
+            remove_file(addr, conn)
 
 
 if __name__ == '__main__':
@@ -88,12 +94,14 @@ if __name__ == '__main__':
     server.bind((HOST, PORT))
     server.listen()
 
+    parent_conn, child_conn = mp.Pipe()
+    l = mp.Process(target=logger, args=(child_conn,))
+    l.start()
+
     while True:            
         client, address = server.accept()
         print(f'Connected to {address}')
         req_type = client.recv(1024).decode()
-        print(req_type)
-        p = mp.Process(target=process_target, args=(req_type,))
+        p = mp.Process(target=method, args=(req_type, address[0], parent_conn))
         p.start()
-        
 

@@ -48,6 +48,7 @@ def descargar():
     while len(file) < int(file_size):
         file += client.recv(1024)
         progress.update(1024)
+    client.send('<DONE>'.encode())
     
     new_file = open(f'./client_folder/{file_name}', 'wb')
     new_file.write(file)
