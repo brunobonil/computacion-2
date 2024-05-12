@@ -1,15 +1,7 @@
-import asyncio
-import time
 
-async def asincrono(t):
-    print(f'Corutina')
-    time.sleep(t)
-    print('Termino la corutina')
+import re
+a = '1021'
 
-
-async def main():
-    await asyncio.gather(asincrono(2), asincrono(3))
-
-asyncio.run(main())
-
-
+if len(a) != 4 or any(i not in ['1','0'] for i in a):
+    print('permiso mal indicado')
+else: print('permiso correcto')

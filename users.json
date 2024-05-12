@@ -1,0 +1,10 @@
+{
+    "pepe": {
+        "pwd": "1234",
+        "permisos": "0000"
+    },
+    "admin": {
+        "pwd": "root",
+        "permisos": "1111"
+    }
+}
