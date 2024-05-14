@@ -4,7 +4,6 @@ import time
 import argparse
 import utility
 import tqdm
-import asyncio
 
 
 HOST = utility.get_ip()
@@ -20,30 +19,25 @@ def listar():
     print('LISTA DE ARCHIVOS')
     [print(f'>>> {i}') for i in files_list]
 
-def enviar(file_name):
+def enviar():
     file_list = args.file
-    #for file_name in file_list:
-    file_size = os.path.getsize(file_name)
-    client.send(f"{file_name}|{str(file_size)}".encode())
-
-    file = open(file_name, "rb")
-    data = file.read()
-    time.sleep(0.01)
-    client.sendall(data)
-    file.close()
-    print(client.recv(1024).decode())
-
-async def enviar_concurrente(file_list):
-    tasks = [enviar(file) for file in file_list]
-    await asyncio.gather(*tasks)
-
+    for file_name in file_list:
+        file_size = os.path.getsize(file_name)
+        client.send(f"{file_name}|{str(file_size)}".encode())
+        time.sleep(0.01)
+        file = open(file_name, "rb")
+        data = file.read()
+        client.sendall(data)
+        file.close()
+        print(client.recv(1024).decode())
 
 def descargar():
     client.send(f'<DOWNLOAD>'.encode())
-    print(client.recv(1024).decode)
+    print(client.recv(1024).decode())
     time.sleep(0.01)
     file_name = args.download
     client.send(file_name.encode())
+    print(client.recv(1024).decode())
     file_size, file = client.recv(1024).split(b'|||')
     progress = tqdm.tqdm(total=int(file_size), unit="B", unit_scale=True, unit_divisor=1000)
 
@@ -61,9 +55,8 @@ def borrar():
     time.sleep(0.01)
     file = args.remove
     print(client.recv(1024).decode())
-    time.sleep(1)
+    time.sleep(0.01)
     client.send(file.encode())
-    print('envio el nombre del archivos')
     print(client.recv(1024).decode())
     client.close()
 
@@ -72,6 +65,7 @@ def enviarCredenciales(user, pwd):
     print(client.recv(1024).decode())
     
 def modificarPermisos(user, permisos):
+    time.sleep(0.01)
     client.send(f'{user}|{permisos}'.encode())
     print(client.recv(1024).decode())
 
@@ -85,7 +79,6 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--download', type=str, help='Descarga el archivo especificado')
     parser.add_argument('-r', '--remove', type=str, help='Elimina el archivo especificado en el servidor remoto')
     parser.add_argument('-m', '--modify', nargs=2, type=str, help='Indicar usuario y nivel de permiso que se le va a asignar')
-    
     args = parser.parse_args()
 
     enviarCredenciales(args.user, args.pwd)
@@ -103,9 +96,15 @@ if __name__ == '__main__':
 
         if args.file:
             client.send(f'<POST>'.encode())
-            print(client.recv(1024).decode())
-            time.sleep(0.01)
-            asyncio.run(enviar_concurrente(args.file))
+            msg = client.recv(1024).decode()
+            if 'DENEGADO' in msg:
+                print(msg)
+                client.close()
+            else:
+                print(msg)
+                client.send(f'{len(args.file)}'.encode())
+                time.sleep(0.01)
+                enviar()
 
         if args.download:
             descargar()

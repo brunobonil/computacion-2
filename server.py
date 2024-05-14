@@ -7,6 +7,7 @@ import os
 import multiprocessing as mp
 import json
 
+
 def list_files(user, addr, conn):
         client.send('Permiso para LISTAR verificado. Listando archivos...'.encode())
         time.sleep(0.01)
@@ -15,12 +16,12 @@ def list_files(user, addr, conn):
         client.send(f'{len(files_list_bytes)}'.encode())
         time.sleep(0.01)
         client.send(files_list_bytes)
-        conn.send(f'La terminal {addr} ha listado los archivos | {dt.datetime.now()}')
+        conn.send(f'El usuario "{user}" con IP: {addr} ha listado los archivos | {dt.datetime.now()}')
 
 def recv_file(user, addr, conn):
         fileInfo = client.recv(1024).decode()
         if fileInfo == '':
-            return
+            return False
         file, file_size = fileInfo.split('|')
 
         progress = tqdm.tqdm(total=int(file_size), unit="B", unit_scale=True, unit_divisor=1000)
@@ -34,23 +35,29 @@ def recv_file(user, addr, conn):
         print(f'Tamaño recibido: {len(file_bytes)}')
         date = dt.datetime.now().strftime('%Y_%m_%d-%H_%M_%S')
 
-
         shared_file = open(f'./shared_files_folder/{file_name}-{address[0]}-{date}{format}', 'wb')
         shared_file.write(file_bytes)
         shared_file.close()
         client.send(f'Archivo enviado exitosamente'.encode())
-        conn.send(f'La terminal {addr} ha subido un archivo | {dt.datetime.now()}')
+        conn.send(f'El usuario "{user}" con IP: {addr} ha subido un archivo | {dt.datetime.now()}')
 
 def send_file(user, addr, conn):
     file_name = client.recv(1024).decode()
-    file = open(f'./shared_files_folder/{file_name}', "rb")
-    file_bytes = file.read()
-    file_to_send = (str(len(file_bytes))+'|||').encode()
-    file_to_send += file_bytes
-    client.sendall(file_to_send)
-    file.close()
-    if client.recv(1024).decode():
-        conn.send(f'La terminal {addr} ha descargado archivo(s) | {dt.datetime.now()}')
+    print(file_name)
+    try:    
+        file = open(f'./shared_files_folder/{file_name}', "rb")
+        file_bytes = file.read()
+        file_to_send = (str(len(file_bytes))+'|||').encode()
+        file_to_send += file_bytes
+        client.send('Enviando archivo'.encode())
+        time.sleep(0.01)
+        client.sendall(file_to_send)
+        file.close()
+        if client.recv(1024).decode():
+            conn.send(f'El usuario "{user}" con IP: {addr} ha descargado archivo(s) | {dt.datetime.now()}')
+    except FileNotFoundError:
+        client.send('ERROR. No existe el archivo indicado'.encode())
+
 
 def remove_file(user, addr, conn):
         client.send('Permiso para eliminar archivo concedido'.encode())
@@ -61,7 +68,7 @@ def remove_file(user, addr, conn):
             client.send(f'El archivo se ha eliminado exitosamente'.encode())
         except FileNotFoundError:
             client.send(f'El archivo no existe.'.encode())
-        conn.send(f'La terminal {addr} ha eliminado archivos | {dt.datetime.now()}')
+        conn.send(f'El usuario "{user}" con IP: {addr} ha eliminado archivos | {dt.datetime.now()}')
         
 def logger(conn):
     while True:    
@@ -86,14 +93,15 @@ def modify_permissions(addr, conn):
         json.dump(usuarios, archivo, indent=4)    
         client.send(f'Se han modificado los permisos del usuario {user} correctamente'.encode())
         client.close()
+        conn.send(f'El administrador con IP {addr} ha modificado los permisos de "{user}"')
         return
+
     except KeyError:
         client.send(f'El usuario indicado no existe, intentar nuevamente'.encode())
         client.close()
-    
 
 def autenticador(client):
-    # Esquema de permisos: 4 bits -> 1º: listar, 2º cargar, 3º descargar, 4º eliminar
+    # Esquema de permisos: 4 bits -> 1º: listar, 2º enviar, 3º descargar, 4º eliminar
     try:
         user, pwd = client.recv(1024).decode().split('|')
     except ValueError:
@@ -113,7 +121,7 @@ def autenticador(client):
         with open('users.json', "w") as archivo:
             json.dump(datos, archivo, indent=4)
         return user
-        
+
 
 def method(req_type, addr, conn, user):
         with open("users.json", "r") as archivo:
@@ -127,15 +135,19 @@ def method(req_type, addr, conn, user):
             
         if req_type == '<POST>':
             if not int(datos[user]["permisos"][1]):
-                client.send("No tiene permiso para subir archivos".encode())
+                client.send("DENEGADO. No tiene los permisos necesarios".encode())
+                client.close()
                 return
-            while True:
+            client.send('ACEPTADO'.encode())
+            nroArchivos = client.recv(1024).decode()
+            for _ in range(int(nroArchivos)):
                 recv_file(user, addr, conn)
 
         if req_type == '<DOWNLOAD>':
             if not int(datos[user]["permisos"][2]):
                 client.send("No tiene permiso para descargar archivos".encode())
                 return
+            client.send("Permisos para DESCARGAR verificados".encode())
             send_file(user, addr, conn)
 
         if req_type == '<REMOVE>':
@@ -153,24 +165,23 @@ if __name__ == '__main__':
     
     HOST = utility.get_ip()
     PORT = 9090
-    # Meter autenticación de clientes
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Especificar el tipo de conexión IPV4 o IPV6
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Reutiliza el puerto en el que se ejecutó por primera vez
     server.bind((HOST, PORT))
     server.listen()
-
+    print('##### SERVIDOR INICIADO #####')
     parent_conn, child_conn = mp.Pipe()
     l = mp.Process(target=logger, args=(child_conn,))
     l.start()
 
     while True:            
         client, address = server.accept()
-        print(f'Connected to {address}')
+        print(f'Conectado a {address}')
         user = autenticador(client)
         if user == False: client.close(); continue # Si falla la autenticacion por falta de valores, se corta la conexion
         
         req_type = client.recv(1024).decode()
+        print(req_type)
         p = mp.Process(target=method, args=(req_type, address[0], parent_conn, user))
         p.start()
         client.close()        

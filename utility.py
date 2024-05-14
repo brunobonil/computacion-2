@@ -1,6 +1,5 @@
 import socket
 
-
 def get_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
